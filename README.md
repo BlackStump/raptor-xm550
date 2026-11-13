@@ -146,17 +146,22 @@ sysupgrade --kernel=/tmp/raptor-xm550-uImage --rootfs=/tmp/raptor-xm550-rootfs.s
 `-f` is needed: local builds share one version name. The modules keep the
 OpenIPC U-Boot they already run.
 
-Before flashing a module that has been worked on by hand, list its overlay
-(`find /overlay/root -type f`): files there hide the image's copies. Remove
-old ones from `/overlay/root/...`, never from `/etc` or `/usr` directly. To
-go back to the image's `raptor.conf`, `rm /overlay/root/etc/raptor.conf`.
+Before flashing a module that has been worked on by hand, list its overlay:
+on this image the overlay's upper directory is `/overlay` itself
+(`find /overlay -xdev -type f`). Files there hide the image's copies; a
+sensor library left from Majestic-era fixes, for one, predates the open AE
+and leaves the picture dark (`get-exposure` all zeros). Remove old ones from
+`/overlay/...`, never from `/etc` or `/usr` directly. `S95xm550` logs any
+library or program in the overlay that shadows the image at every boot. To
+go back to the image's `raptor.conf`, `rm /overlay/etc/raptor.conf`.
 
 ## Files
 
 - `xm550pkg/overlay/etc/raptor.conf` - XM550 config: streams, OSD, IR-cut
   pins, gain thresholds, 50 Hz.
 - `xm550pkg/overlay/etc/init.d/S95xm550` - osmem on first boot, the X50
-  sensor library link.
+  sensor library link, a warning for anything in the overlay that shadows
+  the image.
 - `xm550pkg/overlay/etc/TZ`, `etc/timezone` - Australia/Melbourne.
 - `xm550pkg/overlay/usr/share/fonts/default.ttf` - DejaVu Sans Mono, for the
   OSD.

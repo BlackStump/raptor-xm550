@@ -12,10 +12,31 @@
 #    (firmware #2663); the SC5332 is in X50. The image links it; this
 #    keeps it so if anything relinks it.
 
+#  - Shadowing: the overlay's upper directory is /overlay, and a library or
+#    program left there by hand (from Majestic-era fixes, say) hides the
+#    image's copy. A sensor library from before the open AE gives the ISP
+#    no AE callbacks, and the picture stays dark. Anything in the overlay
+#    under /usr/lib, /usr/bin or /usr/sbin is logged by name, with how to
+#    remove it; nothing is deleted.
+
 MARK=/etc/xm550-osmem-set
+
+shadows() {
+	for d in /overlay/usr/lib /overlay/usr/bin /overlay/usr/sbin; do
+		[ -d "$d" ] || continue
+		find "$d" -type f 2>/dev/null
+	done
+}
 
 start() {
 	ln -sf /usr/lib/sensors/libsns_X50_XM530.so /usr/lib/libsns.so
+
+	s=$(shadows)
+	if [ -n "$s" ]; then
+		for f in $s; do
+			logger -s -p daemon.warn -t xm550 "${f#/overlay} is shadowed by the overlay's copy; rm $f to use the image's"
+		done
+	fi
 
 	mem=$(tr ' ' '\n' </proc/cmdline | sed -n 's/^mem=//p')
 	if [ "$mem" != "72M" ]; then
