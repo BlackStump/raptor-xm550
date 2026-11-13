@@ -1,0 +1,38 @@
+#!/bin/sh
+# S95xm550 -- what the XM550 + SC5332 module needs before Raptor (S96raptor).
+#
+#  - Memory: VI keeps three buffers a way (load_xiongmai: VI_BUFF=3,3) so a
+#    snapshot never costs the stream a frame, which needs 56 MB of MMZ:
+#    osmem=72M. The MMZ split follows the kernel's mem= (load_xiongmai
+#    computes it), and that is U-Boot's osmem, which an image cannot set.
+#    So on the first boot after flashing it is set here and the camera
+#    restarts once. A marker in the overlay stops it trying again if the
+#    setting does not take, so the camera never loops.
+#  - Sensor library: OpenIPC nightlies link libsns.so to the X123 library
+#    (firmware #2663); the SC5332 is in X50. The image links it; this
+#    keeps it so if anything relinks it.
+
+MARK=/etc/xm550-osmem-set
+
+start() {
+	ln -sf /usr/lib/sensors/libsns_X50_XM530.so /usr/lib/libsns.so
+
+	mem=$(tr ' ' '\n' </proc/cmdline | sed -n 's/^mem=//p')
+	if [ "$mem" != "72M" ]; then
+		if [ -e "$MARK" ]; then
+			echo "xm550: mem=$mem, not 72M, after setting osmem once -- Raptor may lose frames; check fw_printenv osmem"
+		else
+			echo "xm550: setting osmem=72M (mem=$mem now) and rebooting once"
+			touch "$MARK"
+			fw_setenv osmem 72M && sync && reboot
+			exit 0
+		fi
+	fi
+}
+
+case "$1" in
+start) start ;;
+stop | restart) ;;
+*) echo "Usage: $0 {start|stop}"; exit 1 ;;
+esac
+exit 0
