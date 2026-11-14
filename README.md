@@ -39,7 +39,7 @@ MPI and the H.264/JPEG encoder are all open (the encoder's kernel module,
   empty in the image, to be set there (or not).
 - **Boots unattended** from the image into all daemons.
 
-Not yet: ONVIF (planned as an option, off by default), H.265 (the chip's
+Not yet: H.265 (the chip's
 Mali-V550; libxmvenc has it, the backend does not use it yet), audio.
 
 ## Hardware notes (IVG-83X50PSA-B)
@@ -157,8 +157,7 @@ go back to the image's `raptor.conf`, `rm /overlay/etc/raptor.conf`.
 
 ## ONVIF
 
-Off by default. `[onvif] enabled = true` in `/etc/raptor.conf`, then
-`/etc/init.d/S96onvifserver restart` (or reboot), and NVRs can find the
+On by default, so NVRs can find the
 camera with auto search (WS-Discovery) or add it by IP on port 80.
 
 It is OpenIPC's `onvif-simple-server` package: `onvif_simple_server` as CGI
@@ -175,7 +174,7 @@ discovery, device information, profiles, stream and snapshot URIs.
 
 ## Motion events
 
-Off by default. The XM550 has no motion engine Raptor can use, so `rvd`
+On by default. The XM550 has no motion engine Raptor can use, so `rvd`
 compares the sub-stream's frames itself (`algorithm = soft`, chosen
 automatically here) and `rmd` keeps `/tmp/onvif_notify_server/motion_alarm`
 while there is motion. With ONVIF on, `onvif_notify_server` turns that file
@@ -183,7 +182,7 @@ into ONVIF motion events, as the stock PB4 sends them
 (`RuleEngine/CellMotionDetector/Motion`, `IsMotion`), so the NVR and its app
 can alert on them.
 
-To turn it on: `[motion] enabled = true` in `/etc/raptor.conf`, then
+To turn it off: `[motion] enabled = false` in `/etc/raptor.conf`, then
 `/etc/init.d/S96raptor restart` and `/etc/init.d/S96onvifserver restart`.
 `sensitivity` (0-4, default 2) and `cooldown_sec` (default 10) are in the
 same section. Whole-scene changes (the IR-cut switching, a light) are
