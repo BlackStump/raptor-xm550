@@ -173,6 +173,22 @@ The stock firmware's ONVIF (inside `Sofia`, gSOAP) also offered motion
 events and encoder changes; this covers what an NVR needs to record:
 discovery, device information, profiles, stream and snapshot URIs.
 
+## Motion events
+
+Off by default. The XM550 has no motion engine Raptor can use, so `rvd`
+compares the sub-stream's frames itself (`algorithm = soft`, chosen
+automatically here) and `rmd` keeps `/tmp/onvif_notify_server/motion_alarm`
+while there is motion. With ONVIF on, `onvif_notify_server` turns that file
+into ONVIF motion events, as the stock PB4 sends them
+(`RuleEngine/CellMotionDetector/Motion`, `IsMotion`), so the NVR and its app
+can alert on them.
+
+To turn it on: `[motion] enabled = true` in `/etc/raptor.conf`, then
+`/etc/init.d/S96raptor restart` and `/etc/init.d/S96onvifserver restart`.
+`sensitivity` (0-4, default 2) and `cooldown_sec` (default 10) are in the
+same section. Whole-scene changes (the IR-cut switching, a light) are
+ignored rather than reported.
+
 ## Files
 
 - `xm550pkg/overlay/etc/raptor.conf` - XM550 config: streams, OSD, IR-cut

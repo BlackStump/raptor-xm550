@@ -23,7 +23,7 @@
 # the web console (or leaves them off). They are not the root login, which
 # the console's own Access setting changes.
 #
-# Daemons: rvd rsd ric rod (video, RTSP, day/night, OSD), rhd + rcd (web
+# Daemons: rvd rsd ric rod rmd (video, RTSP, day/night, OSD, motion), rhd + rcd (web
 # console on :8080), raptorctl. Paths below match the working tree; change
 # them here if yours differ. Run in the Raptor-os container.
 
@@ -95,14 +95,14 @@ overlay() {
     echo ">>> toolchain $B-gcc, sysroot $SYSROOT"
     libs
 
-    echo ">>> building rvd rsd ric rod rhd rcd raptorctl (and the openxiongmai libraries)"
-    (cd "$R" && ./build.sh xm550 "$OUT" rvd rsd ric rod rhd rcd raptorctl > /tmp/mkxm550-build.log 2>&1) ||
+    echo ">>> building rvd rsd ric rod rhd rcd rmd raptorctl (and the openxiongmai libraries)"
+    (cd "$R" && ./build.sh xm550 "$OUT" rvd rsd ric rod rhd rcd rmd raptorctl > /tmp/mkxm550-build.log 2>&1) ||
         { echo "build failed -- see /tmp/mkxm550-build.log"; tail -20 /tmp/mkxm550-build.log; exit 1; }
 
     echo ">>> assembling $OVL"
     rm -rf "$OVL"
     mkdir -p "$OVL/usr/bin" "$OVL/usr/lib/sensors" "$OVL/etc/init.d" "$OVL/usr/share/raptor"
-    cp "$R/rvd/rvd" "$R/rsd/rsd" "$R/ric/ric" "$R/rod/rod" "$R/rhd/rhd" "$R/rcd/rcd" \
+    cp "$R/rvd/rvd" "$R/rsd/rsd" "$R/ric/ric" "$R/rod/rod" "$R/rhd/rhd" "$R/rcd/rcd" "$R/rmd/rmd" \
        "$R/raptorctl/raptorctl" "$OVL/usr/bin/"
     # rhd serves the console as /usr/share/raptor/index.html at "/"
     cp "$R/rhd/console.html" "$OVL/usr/share/raptor/index.html"
@@ -151,6 +151,31 @@ overlay() {
     du -sk "$OVL" | awk '{print "  total " $1 " KiB"}'
 }
 
+# Motion events: the package builds onvif_notify_server and the events
+# templates but installs neither. Built now and added to the overlay: the
+# server, the events service's templates and the notification template,
+# with the event's data item named IsMotion (what the stock PB4 sends
+# under RuleEngine/CellMotionDetector/Motion) instead of the templates'
+# State.
+onvif_events() {
+    echo ">>> onvif-simple-server: built for its motion-event parts"
+    br onvif-simple-server > /tmp/mkxm550-onvif.log 2>&1 ||
+        { echo "onvif-simple-server failed -- see /tmp/mkxm550-onvif.log"; tail -20 /tmp/mkxm550-onvif.log; exit 1; }
+    OSS=$(ls -d "$OUT"/build/onvif-simple-server-*/ 2>/dev/null | head -1)
+    [ -x "$OSS/onvif_notify_server" ] || { echo "  no onvif_notify_server in '$OSS'"; exit 1; }
+    mkdir -p "$OVL/usr/sbin" "$OVL/var/www/onvif/events_service_files" "$OVL/etc/onvif_notify_server"
+    cp "$OSS/onvif_notify_server" "$OVL/usr/sbin/"
+    $B-strip "$OVL/usr/sbin/onvif_notify_server"
+    for f in "$OSS"/events_service_files/*; do
+        sed 's/Name="State"/Name="IsMotion"/' "$f" > "$OVL/var/www/onvif/events_service_files/${f##*/}"
+    done
+    sed 's/Name="State"/Name="IsMotion"/' "$OSS/notify_files/Notify.xml" > "$OVL/etc/onvif_notify_server/Notify.xml"
+    grep -q 'Name="IsMotion"' "$OVL/var/www/onvif/events_service_files/PullMessages_2.xml" ||
+        { echo "  events templates: no State item to rename"; exit 1; }
+    chmod 644 "$OVL"/var/www/onvif/events_service_files/* "$OVL/etc/onvif_notify_server/Notify.xml"
+    echo "  onvif_notify_server, $(ls "$OVL/var/www/onvif/events_service_files" | wc -l) events templates, Notify.xml"
+}
+
 image() {
     overlay
     T=$OUT/target
@@ -173,6 +198,8 @@ image() {
     br olddefconfig > /dev/null
     grep -q '^BR2_PACKAGE_ONVIF_SIMPLE_SERVER=y' "$OUT/.config" ||
         { echo "  could not select BR2_PACKAGE_ONVIF_SIMPLE_SERVER"; exit 1; }
+    onvif_events
+
 
     echo ">>> the overlay: added to BR2_ROOTFS_OVERLAY (applied after the packages)"
     cur=$(sed -n 's/^BR2_ROOTFS_OVERLAY="\(.*\)"$/\1/p' "$OUT/.config")
@@ -220,8 +247,9 @@ image() {
     [ "$(readlink "$D/r/usr/lib/libsns.so")" = /usr/lib/sensors/libsns_X50_XM530.so ] ||
         { echo "  FAIL: libsns.so -> $(readlink "$D/r/usr/lib/libsns.so")"; bad=1; }
     grep -q '^VI_BUFF=3,3' "$D/r/usr/bin/load_xiongmai" || { echo "  FAIL: VI_BUFF"; bad=1; }
-    for f in usr/sbin/onvif_simple_server usr/sbin/wsd_simple_server \
-             var/www/onvif/device_service_files/GetDeviceInformation.xml; do
+    for f in usr/sbin/onvif_simple_server usr/sbin/wsd_simple_server usr/sbin/onvif_notify_server \
+             usr/bin/rmd var/www/onvif/device_service_files/GetDeviceInformation.xml \
+             var/www/onvif/events_service_files/PullMessages_2.xml etc/onvif_notify_server/Notify.xml; do
         [ -e "$D/r/$f" ] || { echo "  FAIL: /$f missing (onvif-simple-server)"; bad=1; }
     done
     for s in device media events ptz; do
