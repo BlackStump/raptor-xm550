@@ -138,7 +138,7 @@ overlay() {
     sed 's/while \[ \$i -lt 50 \] \&\& \[ ! -e \${SHMDIR}\/rss_ring_main \]/while [ $i -lt 200 ] \&\& [ ! -e ${SHMDIR}\/rss_ring_main ]/; s/no ring after 5s/no ring after 20s/' \
         "$R/config/S31raptor" > "$OVL/etc/init.d/S96raptor"
     grep -q 'lt 200' "$OVL/etc/init.d/S96raptor" || { echo "S96raptor: could not lengthen the ring wait"; exit 1; }
-    chmod +x "$OVL"/etc/init.d/* "$OVL"/usr/bin/*
+    chmod +x "$OVL"/etc/init.d/* "$OVL"/usr/bin/* "$OVL"/usr/sbin/*
 
     # rcd writes the stream credentials here once they are set
     chmod 600 "$OVL/etc/raptor.conf"
@@ -162,6 +162,17 @@ image() {
     rm -rf "$T/usr/share/majestic"
     left=$(find "$T/etc" "$T/usr" -iname '*majestic*' 2>/dev/null)
     [ -n "$left" ] && { echo "  still present:"; echo "$left" | sed 's/^/    /'; }
+
+    # ONVIF: OpenIPC's onvif-simple-server package (the server, WS-Discovery
+    # and its XML templates); the overlay replaces its init script and
+    # points its CGIs at onvif-cgi, which builds the conf from raptor.conf.
+    # Off until [onvif] enabled = true.
+    echo ">>> onvif-simple-server: selected in .config"
+    set_config BR2_PACKAGE_MBEDTLS y
+    set_config BR2_PACKAGE_ONVIF_SIMPLE_SERVER y
+    br olddefconfig > /dev/null
+    grep -q '^BR2_PACKAGE_ONVIF_SIMPLE_SERVER=y' "$OUT/.config" ||
+        { echo "  could not select BR2_PACKAGE_ONVIF_SIMPLE_SERVER"; exit 1; }
 
     echo ">>> the overlay: added to BR2_ROOTFS_OVERLAY (applied after the packages)"
     cur=$(sed -n 's/^BR2_ROOTFS_OVERLAY="\(.*\)"$/\1/p' "$OUT/.config")
@@ -209,9 +220,19 @@ image() {
     [ "$(readlink "$D/r/usr/lib/libsns.so")" = /usr/lib/sensors/libsns_X50_XM530.so ] ||
         { echo "  FAIL: libsns.so -> $(readlink "$D/r/usr/lib/libsns.so")"; bad=1; }
     grep -q '^VI_BUFF=3,3' "$D/r/usr/bin/load_xiongmai" || { echo "  FAIL: VI_BUFF"; bad=1; }
+    for f in usr/sbin/onvif_simple_server usr/sbin/wsd_simple_server \
+             var/www/onvif/device_service_files/GetDeviceInformation.xml; do
+        [ -e "$D/r/$f" ] || { echo "  FAIL: /$f missing (onvif-simple-server)"; bad=1; }
+    done
+    for s in device media events ptz; do
+        [ "$(readlink "$D/r/var/www/onvif/${s}_service")" = /usr/sbin/onvif-cgi ] ||
+            { echo "  FAIL: /var/www/onvif/${s}_service -> $(readlink "$D/r/var/www/onvif/${s}_service")"; bad=1; }
+    done
+    # busybox httpd runs CGI under /onvif/ only with OpenIPC's patch
+    grep -q 'onvif/' "$D/r/bin/busybox" || { echo "  FAIL: busybox httpd has no /onvif/ CGI support"; bad=1; }
     rm -rf "$D"
     if [ $bad = 0 ]; then
-        echo "  ok: all $n overlay files as built, libsns -> X50, VI_BUFF=3,3, no majestic"
+        echo "  ok: all $n overlay files as built, libsns -> X50, VI_BUFF=3,3, ONVIF in, no majestic"
         mkdir -p "$X/images"
         cp "$OUT/images/uImage" "$X/images/raptor-xm550-uImage"
         cp "$OUT/images/rootfs.squashfs" "$X/images/raptor-xm550-rootfs.squashfs"

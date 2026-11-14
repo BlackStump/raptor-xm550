@@ -155,10 +155,30 @@ and leaves the picture dark (`get-exposure` all zeros). Remove old ones from
 library or program in the overlay that shadows the image at every boot. To
 go back to the image's `raptor.conf`, `rm /overlay/etc/raptor.conf`.
 
+## ONVIF
+
+Off by default. `[onvif] enabled = true` in `/etc/raptor.conf`, then
+`/etc/init.d/S96onvifserver restart` (or reboot), and NVRs can find the
+camera with auto search (WS-Discovery) or add it by IP on port 80.
+
+It is OpenIPC's `onvif-simple-server` package: `onvif_simple_server` as CGI
+under a busybox httpd of its own, serving only `/onvif/`, and
+`wsd_simple_server` for discovery. `onvif-conf` writes its config from
+`raptor.conf` on every change: the two streams (`rtsp://<ip>/stream0`,
+`/stream1`), snapshots from rhd (`:8080/snap.jpg`), and the stream account
+from `[rtsp]` as the ONVIF login. While that account is unset, ONVIF is as
+open as the streams. The stream URIs carry no credentials.
+
+The stock firmware's ONVIF (inside `Sofia`, gSOAP) also offered motion
+events and encoder changes; this covers what an NVR needs to record:
+discovery, device information, profiles, stream and snapshot URIs.
+
 ## Files
 
 - `xm550pkg/overlay/etc/raptor.conf` - XM550 config: streams, OSD, IR-cut
   pins, gain thresholds, 50 Hz.
+- `xm550pkg/overlay/etc/init.d/S96onvifserver`, `usr/sbin/onvif-conf`,
+  `usr/sbin/onvif-cgi`, `usr/share/onvif-www/` - ONVIF, see above.
 - `xm550pkg/overlay/etc/init.d/S95xm550` - osmem on first boot, the X50
   sensor library link, a warning for anything in the overlay that shadows
   the image.
