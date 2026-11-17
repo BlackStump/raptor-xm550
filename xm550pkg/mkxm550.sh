@@ -117,6 +117,8 @@ overlay() {
     cp "$R/build-xiongmai/libsns.so" "$OVL/usr/lib/sensors/libsns_X50_XM530.so"
     a=$(find "$SYSROOT" -name 'libatomic.so.1' | head -1)
     [ -n "$a" ] && cp -L "$a" "$OVL/usr/lib/"
+    # ydiff: wlight's frame comparison, when rvd's motion detection is off
+    $B-gcc -O2 -Wall -o "$OVL/usr/bin/ydiff" "$PKG/src/ydiff.c"
     $B-strip "$OVL"/usr/bin/* "$OVL"/usr/lib/*.so* "$OVL"/usr/lib/sensors/*
     # after the strip, which would follow it to the build machine's /usr/lib
     ln -sf /usr/lib/sensors/libsns_X50_XM530.so "$OVL/usr/lib/libsns.so"

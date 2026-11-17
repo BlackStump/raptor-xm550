@@ -188,6 +188,28 @@ To turn it off: `[motion] enabled = false` in `/etc/raptor.conf`, then
 same section. Whole-scene changes (the IR-cut switching, a light) are
 ignored rather than reported.
 
+## In a PB4 housing (IR and white LEDs)
+
+The PB4 housing's LED board has no light sensor wire the XM550 reads, and
+its lamps switch on a plain level. Wiring (2026-11-17):
+
+| LED board wire | XM550             | GPIO | on   |
+|----------------|-------------------|------|------|
+| IR             | J7 IR_CTRL        | 41   | high |
+| white          | J4 pin 3 (PWM)    | 39   | high |
+
+Both pins float high until driven, which the board takes as on.
+
+    housing pb4       # this module is in a PB4 housing
+    housing ceiling   # back to the ceiling housing (ADC light sensor)
+
+`housing pb4` sets ric to switch by sensor gain with the IR on GPIO 41,
+writes `/etc/lamp.conf` (so S95xm550 switches both lamps off at boot) and
+`/etc/wlight.conf` (so S97wlight starts the motion white light), then
+restarts Raptor. `lamp white|ir <0-100>`, `lamp off` and `lamp status`
+drive the lamps by hand. White is on/off for now; GPIO 39 has a PWM mode
+in the stock firmware, so dimming can come later.
+
 ## Files
 
 - `xm550pkg/overlay/etc/raptor.conf` - XM550 config: streams, OSD, IR-cut

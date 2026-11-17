@@ -1,0 +1,68 @@
+#!/bin/sh
+# lamp -- the XM550's lamps on GPIOs (sysfs).
+#
+#   lamp white <0-100>   white LEDs: on above 0, off at 0
+#   lamp ir <0-100>      IR LEDs, the same (ric normally drives these)
+#   lamp off             both off
+#   lamp status          both pins' levels
+#
+# In a PB4 housing (2026-11-17): the LED board's IR wire on J7 IR_CTRL
+# (GPIO 41), its white wire on J4 pin 3 (PWM, GPIO 39); both high = on.
+# Override in /etc/lamp.conf (WHITE_GPIO=, IR_GPIO=, ACTIVE_LOW=1 for a
+# board that switches on low). Both pins float high until driven, which
+# the board takes as on: S95xm550 switches them off at boot when
+# /etc/lamp.conf exists. On/off only for now; GPIO 39 has a PWM mode in
+# the stock firmware, so dimming is a later step.
+
+WHITE_GPIO=39
+IR_GPIO=41
+ACTIVE_LOW=0
+[ -f /etc/lamp.conf ] && . /etc/lamp.conf
+
+G=/sys/class/gpio
+
+# XM530/550 pad register of a GPIO: 0xC00 = output high, 0x400 = output
+# low (devmem, 2026-11-17). Used when sysfs cannot take the pin.
+reg() { printf '0x%08x' $((0x10020000 + 4 * $1)); }
+
+pin() { # gpio 0|1 (1 = lamp on)
+	v=$2
+	[ "$ACTIVE_LOW" = 1 ] && v=$((1 - v))
+	[ -d "$G/gpio$1" ] || echo "$1" > "$G/export" 2>/dev/null
+	if [ -d "$G/gpio$1" ]; then
+		echo out > "$G/gpio$1/direction" 2>/dev/null
+		echo "$v" > "$G/gpio$1/value" && return
+	fi
+	devmem "$(reg "$1")" 32 "$([ "$v" = 1 ] && echo 0xC00 || echo 0x400)"
+}
+
+get() { # gpio -> 0|1|? (the pin's level, not the lamp's)
+	if [ -f "$G/gpio$1/value" ]; then
+		cat "$G/gpio$1/value"
+	else
+		case $(($(devmem "$(reg "$1")" 32) & 0xC00)) in
+		$((0xC00))) echo 1 ;;
+		$((0x400))) echo 0 ;;
+		*) echo "?" ;;
+		esac
+	fi
+}
+
+level() { # percent -> 0|1
+	[ "${1:-0}" -gt 0 ] 2>/dev/null && echo 1 || echo 0
+}
+
+case "$1" in
+white) pin "$WHITE_GPIO" "$(level "$2")" ;;
+ir)    pin "$IR_GPIO" "$(level "$2")" ;;
+off)   pin "$WHITE_GPIO" 0; pin "$IR_GPIO" 0 ;;
+status)
+	for n in white:$WHITE_GPIO ir:$IR_GPIO; do
+		g=${n#*:}
+		v=$(get "$g")
+		[ "$v" != "?" ] && [ "$ACTIVE_LOW" = 1 ] && v=$((1 - v))
+		echo "${n%%:*} (gpio $g) $([ "$v" = 1 ] && echo on || { [ "$v" = 0 ] && echo off || echo 'not driven'; })"
+	done
+	;;
+*) echo "usage: lamp white|ir <0-100> | off | status"; exit 1 ;;
+esac

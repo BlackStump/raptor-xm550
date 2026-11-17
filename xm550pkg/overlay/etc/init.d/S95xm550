@@ -31,6 +31,11 @@ shadows() {
 start() {
 	ln -sf /usr/lib/sensors/libsns_X50_XM530.so /usr/lib/libsns.so
 
+	# A housing with IR and white LEDs on GPIO lines (housing pb4): both
+	# lines float high until driven, which the LED board takes as on.
+	# Off now; ric and wlight drive them from here on.
+	[ -f /etc/lamp.conf ] && lamp off
+
 	s=$(shadows)
 	if [ -n "$s" ]; then
 		for f in $s; do

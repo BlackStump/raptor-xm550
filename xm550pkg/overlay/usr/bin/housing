@@ -1,0 +1,76 @@
+#!/bin/sh
+# housing -- set this XM550 up for the housing it is in.
+#
+#   housing pb4       PB4 housing: IR + white LED board, no light sensor.
+#                     IR on J7 IR_CTRL (GPIO 41, driven by ric), white on
+#                     J4 pin 3 (GPIO 39, driven by wlight); day/night from
+#                     gain, as the board has no sensor.
+#   housing ceiling   ceiling housing: IR LED board with its own light
+#                     sensor on J4 pin 1. The board switches its IR itself;
+#                     ric follows the sensor (adc). No white light.
+#   housing           which one this camera is set for
+#
+# Edits /etc/raptor.conf's [ircut] and writes or removes /etc/lamp.conf
+# and /etc/wlight.conf, then restarts what reads them. The gain
+# thresholds for the PB4 housing are a starting point: measure this
+# camera's IR-lit night gain (forced night, raptorctl rvd get-exposure)
+# and set day_threshold to about a third of it.
+
+RC=/etc/raptor.conf
+
+# ircut KEY VALUE: set KEY in [ircut], adding it if missing; VALUE "" deletes
+ircut() {
+	awk -v k="$1" -v v="$2" '
+		function out() { if (!done && v != "") print k " = " v; done = 1 }
+		/^\[/ { if (in_s) out(); in_s = ($0 == "[ircut]") }
+		in_s && $0 ~ "^" k "[ \t]*=" { if (v != "") print k " = " v; done = 1; next }
+		{ print }
+		END { if (in_s) out() }' "$RC" > "$RC.new" && mv "$RC.new" "$RC"
+}
+
+current() {
+	if [ -f /etc/lamp.conf ]; then echo pb4; else echo ceiling; fi
+}
+
+case "$1" in
+pb4)
+	ircut trigger gain
+	ircut gpio_irled 41
+	ircut night_threshold 60000
+	ircut day_threshold 3000
+	ircut hysteresis_sec 30
+	ircut poll_interval_ms 1000
+	ircut adc_night ""
+	ircut adc_day ""
+	printf 'WHITE_GPIO=39\nIR_GPIO=41\n' > /etc/lamp.conf
+	[ -f /etc/wlight.conf ] || cat > /etc/wlight.conf <<'W'
+# wlight -- motion white light at night (delete this file to turn it off)
+LEVEL=100       # on/off on the XM550 for now
+HOLD=15         # seconds on after the last motion
+MAXON=90        # hard limit for one switch-on
+TRIGGER=3       # motion checks in a row (1 s apart) before the light comes on
+IR_VIA_RIC=1    # ric drives the IR LEDs (gpio_irled); off while the white light is on
+W
+	lamp off
+	;;
+ceiling)
+	ircut gpio_irled ""
+	ircut trigger adc
+	ircut adc_night 48
+	ircut adc_day 81
+	ircut hysteresis_sec 2
+	ircut poll_interval_ms 250
+	/etc/init.d/S97wlight stop >/dev/null 2>&1
+	rm -f /etc/lamp.conf /etc/wlight.conf
+	;;
+"")
+	echo "set for: $(current)"
+	grep -E '^(trigger|gpio_irled|night_threshold|day_threshold|adc_night|adc_day|hysteresis_sec|poll_interval_ms) ' "$RC"
+	exit 0
+	;;
+*) echo "usage: housing [pb4|ceiling]"; exit 1 ;;
+esac
+
+/etc/init.d/S96raptor restart
+[ -f /etc/wlight.conf ] && /etc/init.d/S97wlight restart
+echo "set for: $(current)"
