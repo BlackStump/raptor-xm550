@@ -23,7 +23,7 @@
 # the web console (or leaves them off). They are not the root login, which
 # the console's own Access setting changes.
 #
-# Daemons: rvd rsd ric rod rmd (video, RTSP, day/night, OSD, motion), rhd + rcd (web
+# Daemons: rvd rsd ric rod rmd rad (video, RTSP, day/night, OSD, motion, mic), rhd + rcd (web
 # console on :8080), raptorctl. Paths below match the working tree; change
 # them here if yours differ. Run in the Raptor-os container.
 
@@ -95,14 +95,14 @@ overlay() {
     echo ">>> toolchain $B-gcc, sysroot $SYSROOT"
     libs
 
-    echo ">>> building rvd rsd ric rod rhd rcd rmd raptorctl (and the openxiongmai libraries)"
-    (cd "$R" && ./build.sh xm550 "$OUT" rvd rsd ric rod rhd rcd rmd raptorctl > /tmp/mkxm550-build.log 2>&1) ||
+    echo ">>> building rvd rsd ric rod rhd rcd rmd rad raptorctl (and the openxiongmai libraries)"
+    (cd "$R" && ./build.sh xm550 "$OUT" rvd rsd ric rod rhd rcd rmd rad raptorctl > /tmp/mkxm550-build.log 2>&1) ||
         { echo "build failed -- see /tmp/mkxm550-build.log"; tail -20 /tmp/mkxm550-build.log; exit 1; }
 
     echo ">>> assembling $OVL"
     rm -rf "$OVL"
     mkdir -p "$OVL/usr/bin" "$OVL/usr/lib/sensors" "$OVL/etc/init.d" "$OVL/usr/share/raptor"
-    cp "$R/rvd/rvd" "$R/rsd/rsd" "$R/ric/ric" "$R/rod/rod" "$R/rhd/rhd" "$R/rcd/rcd" "$R/rmd/rmd" \
+    cp "$R/rvd/rvd" "$R/rsd/rsd" "$R/ric/ric" "$R/rod/rod" "$R/rhd/rhd" "$R/rcd/rcd" "$R/rmd/rmd" "$R/rad/rad" \
        "$R/raptorctl/raptorctl" "$OVL/usr/bin/"
     # rhd serves the console as /usr/share/raptor/index.html at "/"
     cp "$R/rhd/console.html" "$OVL/usr/share/raptor/index.html"

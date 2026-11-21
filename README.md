@@ -210,6 +210,18 @@ restarts Raptor. `lamp white|ir <0-100>`, `lamp off` and `lamp status`
 drive the lamps by hand. White is on/off for now; GPIO 39 has a PWM mode
 in the stock firmware, so dimming can come later.
 
+## Audio
+
+The mic is on both RTSP streams as G.711 (PCMU, 8 kHz), on by default;
+`[audio] enabled = false`, or Audio -> Audio capture in the web console,
+turns it off. ONVIF advertises it to the NVR.
+
+No library is involved: the vendor `xm_i2s.ko` gives captured PCM on
+`/dev/ai` to plain `read()`, 8 kHz 16-bit mono as `acodec.ko` sets it up
+at load. raptor-hal's `xm_audio.c` reads it for rad, filters out the mains
+hum (50 and 150 Hz) and the DC offset with a 250 Hz high-pass, and applies
+the volume in software. 8000 Hz is the only rate.
+
 ## Files
 
 - `xm550pkg/overlay/etc/raptor.conf` - XM550 config: streams, OSD, IR-cut
